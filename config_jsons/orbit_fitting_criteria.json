@@ -1,0 +1,67 @@
+{
+	"multi_tracklet" : { 
+		"description" : "criteria related to the evaluation of multiple tracklets via orbit-fitting. e.g. IOD, itf-2-itf linking, ...", 
+		"value"	: {	
+			"mp_iod" : {
+				"description" : "Initial Orbit Determination for Minor Planets",
+				"value" : {
+  					"minimum_number_tracklets"    : { 	
+						"value" 	: 3, 
+						"description" 	: ""}, 
+  					"minimum_number_observations" : {
+						"value"		: 6,
+                       	 			"description"   : ""},   
+  					"minimum_number_nights"       : {
+						"value"         : 2,
+                        			"description"   : ""},
+  					"maximum_scaled_rms"          : {
+						"value"		: 1.0, 
+						"description"   : " [[Talk to Federica : want rms close to 0.5 ?]]"}
+					}
+				},
+			"cmt_iod" : {
+				"description" : "Initial Orbit Determination for Comets",
+				"value" : {}
+				}
+			}
+	},
+	"single_tracklet" : {
+		"description" : "criteria related to the evaluation of single tracklets via orbit-fitting. e.g.  newly submitted tracklets, ...",
+		"value" : {
+			 "mp_X"  : {
+				"description" : "Orbit eXtension for Minor Planets",
+                                "value" : {				
+		               	 	"bad_obs_weight"        : {
+                		        	"value"         : 5.0,
+               			         	"description"   : ""},
+               		 		"fraction_bad"      : {
+                        			"value"         : 0.5,
+                        			"description"   : ""},
+                			"bad_obs_threshhold"      : {
+                        			"value"         : 5.0,
+                        			"description"   : ""},
+                			"discard_threshhold"      : {
+                        			"value"         : 20.0,
+                        			"description"   : ""},
+                			"recovery_bad_obs_threshhold"      : {
+                        			"value"         : 3.0,
+                        			"description"   : ""},
+               	 			"bad_mag_threshhold"      : {
+                        			"value"         : 2.0,
+                        			"description"   : ""},
+                			"recovery_age"      : {
+                        			"value"         : 238.0,
+                        			"description"   : ""},
+                			"dubious_obs_threshhold"      : {
+                        			"value"         : 3.0,
+                        			"description"   : ""},
+                			"dubious_obs_weight"      : {
+                        			"value"         : 3.0,
+                        			"description"   : ""}
+				}
+        		}
+		}
+	}
+}
+
+
