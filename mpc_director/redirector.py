@@ -1,114 +1,116 @@
 ''' 
 redirector.py
- - pseudo-code to direct tracklet / cluster jobs
+ - code to direct tracklet / cluster jobs
  - I.e. based upon the results from a previous job, the tracklet / cluster is assigned to a subsequent processing job ...
 
-MJP 2022-11-09
+MJP Did a lot of process sketching in ..
+(1) Initial Desig / Overlap Flow:   https://app.diagrams.net/#G1B5l1AMNGYVKv8mMLZB286md4zeD6f6o2
+(2) Overall Orbit/Attribution Flow: v5: https://app.diagrams.net/#G1bDLya4pWqjadyVlF4l1UT8riBw8nNRCm
+                                    v6: https://drive.google.com/file/d/1HOVxIsQtfyFIIdKVKIY-eDt7YIU4o2TM/view?usp=share_link
+MJP 2022-12-01
 
- one could imagine using luigi/similar, but fuck-it ... 
 
 '''
-import processor_categories as proc_cats
-import tracklet_overlap_categories as track_cats
+
+# --------------------------------------------------
+# Imports ...
+# --------------------------------------------------
+import json
+
+# --------------------------------------------------
+# Import Orbit Criteria (from json)
+# - This does *not* seem like the correct way to do this ...
+# --------------------------------------------------
+with open("../config_jsons/processor_types.json") as f:
+    allowed_processor_types = json.load(f)["values"]
+with open("../config_jsons/tracklet_overlap_categories.json") as f:
+    allowed_tracklet_overlap_categories = json.load(f)["values"]
 
 # --------------------------------------------
 # Overall control function(s)
 # --------------------------------------------
-def single_tracklet_redirector( from_proc_type, proc_results_dict ) :
+def process_redirector( from_proc_type, proc_results_dict ) :
   '''
-    Given the results from a preceeding processing step for 
-    *** single tracklets *** , decide what the next processing 
-    step should be
+    Given the results from a preceeding processing step,
+    decide what the next processing step should be.
+    
+    Intended to work for both *single*-tracklet processing
+    jobs (e.g. orbit-extension), and *multiple*-tracklet processing
+    jobs (e.g. IOD/linking)
     
     inputs:
     -------
     from_proc_type      : str
-     -
+     - the type of processing job previously performed
      
     proc_results_dict   : dict
-     -
+     - the results from the previous processing job
+     - different jobs will return different variables within the dictionary
     
     returns:
     --------
-    to_proc_type        : str
-     -
-      
-    proc_spec_dict      : dict
-     -
+    destination_job_spec_dict : dict
+     - must contain at least a key = 'destination'
   '''
-
-  # check the inputs
-  assert from_proc_type in proc_cats.tracklet_processor_types
-  assert "success" in proc_results_dict # <<-- if "success" NOT in proc_results_dict, then input is malformed: raise error?
-  assert "trkid" in proc_results_dict # <<-- if "trkid" NOT in proc_results_dict, then input is malformed: raise error?
-
-  # define some default output values (to-be populated by subsequent functions)
-  to_proc_type, proc_spec_dict = None, {'trkid' : proc_results_dict['trkid']}
+  assert from_proc_type in allowed_processor_types
+ 
+  # -------------------------------------------------
+  # ----- SINGLE-TRACKLET REDIRECTION  FUNCTIONS ----
+  # -------------------------------------------------
 
   # redirect NEW tracklet
   if from_proc_type == 'NEW':
-    to_proc_type, proc_spec_dict = decision_func_NEWSUB( proc_results_dict , proc_spec_dict)
+    destination_job_spec_dict = decision_func_NEWSUB(   proc_results_dict["tracklet_overlap_category"] ,
+                                                        proc_results_dict["overlapped_uppd_list"],
+                                                        proc_results_dict["suppd"],
+                                                        proc_results_dict["new_data"])
 
   # redirect results from orbit-extension
   elif from_proc_type == 'X':
-    to_proc_type, proc_spec_dict = decision_func_X(proc_results_dict, proc_spec_dict)
+    destination_job_spec_dict = decision_func_X(proc_results_dict["success"],
+                                                proc_results_dict["stacked_obs"],
+                                                proc_results_dict["along_track_error"],
+                                                proc_results_dict["cross_track_error"],
+                                                proc_results_dict["cuppd"])
 
   # redirect results from attribution
   elif from_proc_type == 'ATT':
-    to_proc_type, proc_spec_dict = decision_func_ATT(proc_results_dict, proc_spec_dict)
-    
-  # check that the decision is defined!!
-  assert to_proc_type in proc_cats.proc_types and proc_cats.proc_types[to_proc_type]['allow_to'] 
+    destination_job_spec_dict = decision_func_ATT(  proc_results_dict["success"],
+                                                    proc_results_dict["suppd"],
+                                                    proc_results_dict["neocp"])
+  
+  # redirect results from NEOCP
+  elif from_proc_type == 'NEOCP':
+    destination_job_spec_dict = decision_func_NEOCP(  proc_results_dict["success"] )
+
+
+  # -------------------------------------------------
+  # ----- MULTI-TRACKLET REDIRECTION  FUNCTIONS -----
+  # -------------------------------------------------
+
+  # redirect results from IOD
+  elif from_proc_type == 'I':
+    destination_job_spec_dict = decision_func_IOD( proc_results_dict["success"] )
 
 
 
-def cluster_redirector( from_proc_type, proc_results_dict ) :
-  '''
-    Given the results from a preceeding ***cluster*** processing step,
-    decide what the next processing step should be
-    
-    inputs:
-    -------
-    from_proc_type      : str
-     -
-     
-    proc_results_dict   : dict
-     -
-    
-    returns:
-    --------
-    to_proc_type        : str
-     -
-      
-    proc_spec_dict      : dict
-     -
-  '''
 
-  # check the inputs
-  assert from_proc_type in proc_cats.tracklet_processor_types
-  assert "success" in proc_results_dict # <<-- if "success" NOT in proc_results_dict, then input is malformed: raise error?
-  assert "trkid" in proc_results_dict # <<-- if "trkid" NOT in proc_results_dict, then input is malformed: raise error?
 
-  # define some default output values (to-be populated by subsequent functions)
-  to_proc_type, proc_spec_dict = None, {'trkid' : proc_results_dict['trkid']}
-
-  # redirect resultts from IOD 
-  if from_proc_type == 'I':
-    to_proc_type, proc_spec_dict = decision_func_I( proc_results_dict , proc_spec_dict)
-
+  # -------------------------------------------------
+  # - Anything else is currently undefined ----------
+  # -------------------------------------------------
   else:
-    pass 
-
-
-  # check that the decision is defined!!
-  assert to_proc_type in proc_cats.proc_types and proc_cats.proc_types[to_proc_type]['allow_to']
-
-
-
-
-
-
-
+    destination_job_spec_dict = {}
+    
+  # -------------------------------------------------
+  # Check that the destination is defined/allowed !!
+  # -------------------------------------------------
+  assert 'destination' in destination_job_spec_dict
+  assert destination_job_spec_dict['destination'] in allowed_processor_types, \
+    f"{destination_job_spec_dict['destination']} not in {allowed_processor_types}"
+  
+  return destination_job_spec_dict
+  
 
 
 
@@ -120,131 +122,304 @@ def cluster_redirector( from_proc_type, proc_results_dict ) :
 # Single-Tracklet-Processor Decision functions
 # --------------------------------------------
 
-def decision_func_NEWSUB(proc_results_dict, proc_spec_dict):
-  ''' decide what to do with *new* submissions
-  
+def decision_func_NEWSUB(   tracklet_overlap_category : str ,
+                            overlapped_uppd_list : list,
+                            suppd : str,
+                            new_data : bool ) -> dict:
+  ''' Decide what to do with *new* submissions
       primarily relates to what we should do for tracklet-overlap "types"
+
+      For flowchart pf logic, see: "https://app.diagrams.net/#G1B5l1AMNGYVKv8mMLZB286md4zeD6f6o2"
+
+      NB:
+       - Trying to be explicit about the input variables
+
+    inputs:
+    -------
+    tracklet_overlap_category : str
+     - Defining tracklet overlap categories. These would be evaluated / defined by looking at the *obs_group* status for each constituent observation of a new tracklet. Allowed values are in config_jsons/tracklet_overlap_categories.json
+                            
+    overlapped_uppd_list : list
+     - If observations overlap with previously designated objects, we list the overlapped uppd. If *no* overlap, then list empty
+                            
+    suppd : str
+     - Suggested unpacked primary provisional designation
+     - If the submitters provided a suggested designation, this is it
+                            
+    new_data : bool
+     - Did the submitted tracklet contain any new data, in the sense of changing the "primary obs" for the obs_group?
+
+    returns:
+    -------
+    destination_job_spec_dict : dict
+     - must contain at least a key = 'destination' describing the next task to be performed
   '''
-  
+
   # check input tracklet_overlap_category
-  assert in_and_true("tracklet_overlap_category", proc_results_dict)
-  assert proc_results_dict["tracklet_overlap_category"] in track_cats.allowed_tracklet_overlap_categories
+  assert tracklet_overlap_category in [ k for k in allowed_tracklet_overlap_categories]
+  if 'D' not in tracklet_overlap_category: assert not overlapped_uppd_list
   
-  # if the submitted tracklet has a designation we can understand ...
-  if in_and_true("suppd", proc_results_dict):
+  # if there are multiple overlapped designations, send to problems
+  # (the destination could change in the future to R/D, but clearly these are complex case)
+  if len(overlapped_uppd_list) > 1:
+    destination_job_spec_dict = {
+        'destination' : 'PROBLEMS',
+        'description' : 'Overlaps multiple designated objects:{overlapped_uppd_list}'
+  }
   
-    # if all of the obs are single/new, send for attribution
-    if proc_results_dict["tracklet_overlap_category"] == 'S':
-        to_proc_type = 'X'
+  # if we have no new data for designated object, terminate
+  # *** WE PROBABLY NEED TO DO *SOMETHING* : E.g. set status = ??? ***
+  # ***   WHATEVER NEEDS GOING WILL BE SPECIFIED IN "SUBORDINATE"  ***
+  elif tracklet_overlap_category == 'D' and new_data == False:
+    destination_job_spec_dict = {
+        'destination' : 'SUBORDINATE',
+        'description' : 'No new data'
+  }
 
-  
-  # if *not* designation supplied ...
-  else:
-    # if all of the obs are single/new, send for attribution
-    if proc_results_dict["tracklet_overlap_category"] == 'S':
-        to_proc_type = 'ATT'
+  # if we have no new data for itf object, terminate
+  elif tracklet_overlap_category == 'I' and new_data == False:
+    destination_job_spec_dict = {
+        'destination' : 'ITF',
+  }
+
+  # if some form of designation is available, send for orbit-fitting
+  # NB: Could imagine making a different decision here, and sending suppd-only for Attribution first
+  elif tracklet_overlap_category in ['D','DS','DIS','DI']  or  suppd :
+    destination_job_spec_dict = {
+        'destination'   : 'X',
+        'suppd'         : overlapped_uppd_list[0] if overlapped_uppd_list else suppd
+  }
+
         
-    # if all observations overlap with submitted observations of a single designation, send for refitting
-    elif proc_results_dict["tracklet_overlap_category"] == 'D' :
-        to_proc_type = 'X'
+  # anything else, send for attribution
+  # NB: This should be S/SI/I (where the I must have new data)
+  else:
+    destination_job_spec_dict = {
+        'destination' : 'ATT',
+  }
+
+  # could change the return signature to explicitly return a string (destination) first ...
+  return destination_job_spec_dict
 
 
-  return to_proc_type, proc_spec_dict
 
 
 
 
 
 
+def decision_func_X( success           : bool,
+                     stacked_obs       : bool,
+                     along_track_error : bool,
+                     cross_track_error : bool,
+                     cuppd             : str) -> dict:
+  ''' decide what to do with results from ORBIT EXTENSION
+  
+    Note that there are some old ideas in https://app.diagrams.net/#G1bDLya4pWqjadyVlF4l1UT8riBw8nNRCm
+     - Either that flow diagram or this function should be updated to maintain consistency
+  
+    inputs:
+    -------
+    success           : bool
+     - whether the orbit-extension orbit-fit was successful
+     
+    stacked_obs       : bool
+     - whether the tracklet contains stacked observations
+     
+    along_track_error : bool
+     - whether the rejected tracklet had significant along-track errors
+     
+    cross_track_error : bool
+     - whether the rejected tracklet had significant across-track errors
 
+    cuppd             : str
+     - confirmed unpacked primary provisional designation for successful orbit-fit
 
-def decision_func_X(proc_results_dict ,  proc_spec_dict):
-  ''' decide what to do with results from ORBIT EXTENSION '''
-
+    returns:
+    -------
+    destination_job_spec_dict : dict
+     - must contain at least a key = 'destination' describing the next task to be performed
+  '''
   # if the orbit-fit extension was successful, then perform
   # all operations necessary to associate tracklet with designated object
-  if proc_results_dict["success"]:
-    to_proc_type = 'CUPPD'
-    proc_spec_dict['confirmed_uppd'] = proc_results_dict['uppd']
-    
+  if success and cuppd:
+    destination_job_spec_dict = {
+        'destination'   : 'CUPPD',
+        'cuppd'         : cuppd
+    }
+  
   # if the IOD orbit-fit did not work
   # (in the sense that it executed but the tracklet does not belong),
   # then ...
-  else:
-    # Delete / Reject when ..
-    # (i) the tracklet obs are stacked and/or
-    # (ii) the tracklet obs are "offset" from the expected locn
-    if  in_and_true("stacked",     proc_results_dict) or \
-        in_and_true("offset",      proc_results_dict):
-      to_proc_type = 'R/D'
-      
-    # Send for Attribution (and hence perhaps ITF) when we have obvious cross-track residuals
-    elif in_and_true("cross_track", proc_results_dict):
-      to_proc_type = 'ATT'
-      
-    # Undefined outcome. E.g. generically shitty residuals
-    # Send for Attribution
-    # - can argue later about whether to directly reject this too ...
-    else:
-      to_proc_type = 'ATT'
-     
-  return to_proc_type, proc_spec_dict
-
-
-
-def decision_func_ATT(proc_results_dict ,  proc_spec_dict):
-  ''' decide what to do with results from ATTRIBUTION '''
+  # ...
+  # Delete / Reject when ..
+  # (i) the tracklet obs are stacked and/or
+  # (ii) the tracklet obs are "offset" from the expected locn
+  elif stacked_obs or along_track_error :
+    destination_job_spec_dict = {
+        'destination'   : 'R/D',
+    }
   
+  # Send for Attribution (and hence perhaps ITF) when we have obvious cross-track residuals
+  elif cross_track_error:
+    destination_job_spec_dict = {
+        'destination'   : 'ATT',
+    }
+
+  # Other failure: E.g. perhaps caused by generically shitty residuals, then ...
+  # send for Attribution
+  # NB(1) *** Might have had NEW ->> ATT (suggest #1) -->> X -->> ... And now we want to try for ATT (suggest #2) ...
+  # NB(2) *** can argue later about whether to just directly reject this ***
+  else:
+    destination_job_spec_dict = {
+        'destination'   : 'ATT',
+    }
+
+  return destination_job_spec_dict
+
+
+
+
+
+def decision_func_ATT(  success : bool,
+                        suppd   : str,
+                        neocp   : bool
+                        ) -> dict:
+  ''' decide what to do with results from ATTRIBUTION
+  
+    inputs:
+    -------
+    success           : bool
+     - whether the ATTRIBUTION was successful and found a possible designation
+     
+    suppd             : str
+     - suggested unpacked primary provisional designation from successful ATTRIBUTION
+
+    neocp : bool
+     - is this an neocp-related submission
+
+    returns:
+    -------
+    destination_job_spec_dict : dict
+     - must contain at least a key = 'destination' describing the next task to be performed
+  '''
+
   # if the attribution was successful, in the sense that an "suppd" was returned,
   # then send for orbit extension
-  # NB it is assumed that the Attribution func is in charge of not returning results that have been returned recently...
-  if proc_results_dict["success"] and \
-     in_and_true("suppd", proc_results_dict) :
-    to_proc_type = "X"
-    proc_spec_dict['suppd'] = proc_results_dict['suppd']
-      
-  # Could consider adding in extra logic to look at "second-choice" suppd
-  elif False:
-    pass
+  # NB I will assume that the Attribution func is in charge of **NOT** returning results
+  #    that have already been returned recently
+  #    (it could perhaps return 2nd choice if 1st choice was tried recently)
+  if success and suppd:
+    destination_job_spec_dict = {
+        'destination'   : 'X',
+        'suppd'         : suppd
+    }
     
-  # If nothing above worked, then send to ITF (i.e. could not attribute)
+  # if this was flagged as being a possible NEOCP tracklet, then if attribution
+  # failed, we send it on to the NEOCP
+  elif neocp:
+    destination_job_spec_dict = {
+        'destination'   : 'NEOCP',
+    }
+
+  # If none of the above, then send to ITF (i.e. could not attribute)
   else:
-    to_proc_type = "ITF"
-      
-  return to_proc_type, proc_spec_dict
+    destination_job_spec_dict = {
+        'destination'   : 'ITF',
+    }
+    
+  return destination_job_spec_dict
     
     
-# --------------------------------------------
-# Cluster-Processor Decision functions
-# --------------------------------------------
-
-
-
-def decision_func_I(proc_results_dict, proc_spec_dict):
-  ''' decide what to do with results from IOD ''
+    
+def decision_func_NEOCP(    success : bool) -> dict:
+  ''' decide what to do with results from NEOCP
   
-  # if the IOD orbit-fit was successful, then ...
-  if proc_results_dict["success"]:
-    to_proc_type   = 'DESIG'
+    inputs:
+    -------
+    success           : bool
+     - whether the NEOCP var-orb generation was successful
     
+    returns:
+    -------
+    destination_job_spec_dict : dict
+     - must contain at least a key = 'destination' describing the next task to be performed
+  '''
+
+  # if NEOCP fitting/var-orb generation was successful, we can probably terminate
+  # *** might need to update some tables / fields ***
+  if success:
+    destination_job_spec_dict = {
+        'destination'   : 'TERMINATE',
+    }
+    
+  # if unsuccessful, send to ITF
+  # NB: we assume that prior to NEOCP it has already been through (and failed) attribution, ...
+  # ...so we do NOT need to send it their again
+  else:
+    destination_job_spec_dict = {
+        'destination'   : 'ITF',
+    }
+    
+  return destination_job_spec_dict
+    
+    
+
+    
+# --------------------------------------------
+# Cluster-Processor Decision function(s)
+# --------------------------------------------
+
+def decision_func_IOD( success : bool) -> dict:
+  ''' decide what to do with results from IOD
+  
+      NB(1): Especially for failures, it might be useful to define
+             the "context" in which this IOD was performed ...
+             "linking" => reject linkage
+             "NEOCP" => ???
+             "direct submission (e.g. LSST)" => reject tracklet / problems
+          
+      NB(2): There may also need to be a more nuanced consideration
+             of whether the tracklet is submitted as a single thing,
+             but then got split by the MPC ...
+
+
+    inputs:
+    -------
+    success           : bool
+     - whether the NEOCP var-orb generation was successful
+    
+    returns:
+    -------
+    destination_job_spec_dict : dict
+     - must contain at least a key = 'destination' describing the next task to be performed
+
+  '''
+  
+  # if the IOD orbit-fit was successful, then designate
+  if success:
+    destination_job_spec_dict = {
+        'destination'   : 'DESIG',
+    }
+
   # if the IOD orbit-fit did not work, then try attribution
-  # *** In the context of the "tracklet_queue" table, we have only a single trackid ***
-  # *** we will obviously need some other way to deal with the ITF-to-ITF linkages and their potential failure ***
   else:
-    to_proc_type = 'ATT'
+    destination_job_spec_dict = {
+        'destination'   : 'ATT',
+    }
 
-  return to_proc_type, proc_spec_dict
+  return destination_job_spec_dict
 
 
 
 # --------------------------------------------
-# Assorted data / utility funcs
+# Whole-Orbit Decision function(s)
 # --------------------------------------------
-
-def in_and_true(k, d):
-  ''' is key, k, in dict, d, and does the value d[k] retern as True/positive ? '''
-  return True if k in d and d[k] else False
-  
-def suppd_tried_recently( suppd , time_horizon_days = 30):
-  ''' stored '''
-
+'''
+I.e. what to do with results from,
+E.g.
+ - whole-orbit refitting (checking);
+ - whole-orbit refitting (change ephem/pert );
+ - epoch propagation;
+ - ...
+'''

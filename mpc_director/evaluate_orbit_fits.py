@@ -61,17 +61,28 @@ Cleaning
 MJP: 2022-11-03
 '''
 
-
+# --------------------------------------------------
+# Imports ...
+from enum import Enum
+import json
+import itertools
 
 
 # --------------------------------------------------
 # Import Orbit Criteria (from json)
 # - This does *not* seem like the correct way to do this ... 
 # --------------------------------------------------
-import json
 with open("../config_jsons/orbit_fitting_criteria.json") as f:
   orbit_criteria_dict = json.load(f)
-print(orbit_criteria_dict)
+
+# These top-level categories look like ...
+# [<ocdCategories.multi_tracklet: 1>, <ocdCategories.single_tracklet: 2>]
+ocdCategories = Enum( "ocdCategories", list(orbit_criteria_dict.keys()) )
+
+# These lower level criteria sets look like ...
+# [<ocdCriteriaSets.mp_iod: 1>, <ocdCriteriaSets.cmt_iod: 2>, <ocdCriteriaSets.mp_X: 3>]
+ocdCriteriaSets = Enum( "ocdCriteriaSets", list(itertools.chain(*[list(v['value'].keys()) for v in orbit_criteria_dict.values()])) )
+
 
 # --------------------------------------------------
 # Evaluation Class(es) / Function(s)
@@ -82,42 +93,59 @@ class EvaluateOrbitFit():
   
 
   def __init__(self, criteria_key ):
+
+    # ensure that the "criteria_key" is in ocdCriteriaSets
+    assert criteria_key in ocdCriteriaSets.__dict__ , f'{criteria_key} is an unknown orbit-fitting criteria-type'
   
-    # Get criteria from dict
-    for k,v in criteria_dicts[criteria_key]:
-      self.__dict__[k] = v["value"]
-
-
-    # --- Allow for the possibility of overriding defaults using kwargs ---
-    # - I'm dubious about doing this ... 
-    #for k,v in self.__dict__.items():
-    #  if k in kwargs:
-    #    self.__dict__[k] = kwargs[k]
+    # Get criteria from dict/json
+    for k,v in orbit_criteria_dict.items():                     # top-level ocdCategories, E.g. k = 'single_tracklet'
+      if criteria_key in v['value'].keys():                     # lower-level ocdCriteriaSets, E.g. 'mp_X'
+        for kk,vv in v['value'][criteria_key]['value'].items(): # lowest level criteria, E.g. "minimum_number_tracklets"
+          self.__dict__[kk] = vv['value']
 
 
 
-  
-
-  # (A) Functions to evaluate IOD orbit-fits  
-  # - I.e. Criteria for that would allow us to designate a new object ... 
+  # Single-Tracklet Evaluation Functions ...
   # ------------------------------------------------------------------------------------
-
-  def itf_2_itf(self, 
-		number_tracklets,     # Do  
-		number_observations,  # we
-		number_nights,        # care?
-		rms):
+  def _eval_mp_X(   self,
+                    bad_obs_weight,
+                    fraction_bad,
+                    bad_obs_threshhold,
+                    discard_threshhold):
     '''
-    Linking ITF tracklets [Identification pipeline]
-    - I guess this is also the criteria that should be applied to ...
-      the creation of any generic MBA designation (e.g. when removing non-NEOs from the NEOCP)
+    Evaluate the results from minor-planet orbit extension
+    - These should be used in most pipeline orbit fits
+    '''
+    if number_tracklets    >= self.minimum_number_tracklets    and \
+       number_observations >= self.minimum_number_observations and \
+       number_nights       >= self.minimum_number_nights       and \
+       rms                 <= self.maximum_scaled_rms:
+      return True
+    return False
+
+
+
+
+
+  # Multi-Tracklet Evaluation Functions ...
+  # ------------------------------------------------------------------------------------
+  def _eval_mp_iod( self,
+                    number_tracklets,     # Do
+                    number_observations,  # we
+                    number_nights,        # care?
+                    rms):
+    '''
+    Evaluate the results from minor-planet IOD
+    - By definition these results must apply across the entire object (i.e. across multiple tracklets)
+    - I guess this is also the criteria that should be applied to the linking of itf-2-itf
+      -- There are criteria in Margaret's pipeline ...
     - I guess that somewhere I/we need to think about the IAUs/MPCs old habit ...
       of allowing any 2-nighter to be designated
     '''
-    if number_tracklets    >= minimum_number_tracklets    and \
-       number_observations >= minimum_number_observations and \
-       number_nights       >= minimum_number_nights       and \
-       rms                 <= maximum_scaled_rms:
+    if number_tracklets    >= self.minimum_number_tracklets    and \
+       number_observations >= self.minimum_number_observations and \
+       number_nights       >= self.minimum_number_nights       and \
+       rms                 <= self.maximum_scaled_rms:
       return True
     return False 
 

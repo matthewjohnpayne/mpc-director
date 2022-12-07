@@ -1,0 +1,73 @@
+{
+    "last_modifying_author"     : "MJP",
+    "last_modification_date"    : "2022-11-29",
+    "description"   :  "Defining the different types of processing operations we expect/allow to exist.\n The *single* field is attempting to indicate whether the processor type handles single tracklets (if true) or clusters (if false).\n The *async* field is attempting to indicate whether this type of job is performed asyncronosly (by some process that is external to the db): If so, then we allow the proc_type/job_type field in the tracklet_queue / cluster_queue tables to be set to this type. If async = false, they are just db-update jobs, requiring no async-queuing.\n The *terminate* field is attempting to indicate whether this is a terminal processing step (if true), or whether additional tasks will subsequently be required.s",
+    "values"        :   {
+        "NEW"    : {    "title"             : "Newly Submitted Tracklet",
+                        "description"       : "A new submission has been received, and entered into the db.",
+                        "single"            : true,
+                        "async"             : false,
+                        "terminate"         : false
+                        },
+        "R/D"   : {     "title"             : "Reject / Delete",
+                        "description"       : "Perform all necessary tasks to label a tracklet as rejected / deleted. Assumes some preceeding process (e.g. orbit-fitting) has found that the tracklet should be deleted.",
+                        "single"            : true,
+                        "async"             : false,
+                        "terminate"         : true
+                    },
+        "ITF"   : {     "title"             : "Send to ITF",
+                        "description"       : "Perform all necessary tasks to label a tracklet as being in the ITF. Assumes some preceeding process (e.g. orbit-fitting) has found that the tracklet should be moved to the ITF",
+                        "single"            : true,
+                        "async"             : false,
+                        "terminate"         : true
+                    },
+        "CUPPD" : {     "title"             : "Confirmed Designation",
+                        "description"       : "Perform all necessary operations to update the database in order to associate a tracklet with a CUPPD (obs, orbit, ...). Assumes some preceeding process (e.g. orbit-fitting) has found that the tracklet should be associated with the UPPD",
+                        "single"            : true,
+                        "async"             : false,
+                        "terminate"         : true
+                    },
+         "X"     : {    "title"             : "Orbit extension",
+                        "description"       : "Attempt an orbit-fit that combines the new tracklet with previously-published obs for known object.",
+                        "single"            : true,
+                        "async"             : true,
+                        "terminate"         : false
+                        },
+        "ATT" : {       "title"             : "Attribution",
+                        "description"       : "Check whether any known orbits come close to these observations: this will generate a suggested_uppd.",
+                        "single"            : true,
+                        "async"             : true,
+                        "terminate"         : false
+                        },
+        "NEOCP" : {     "title"             : "NEOCP Calculations & Posting",
+                        "description"       : "Do orbit-fitting, variant-orbit fitting, etc, and then post to the NEOCP",
+                        "single"            : true,
+                        "async"             : true,
+                        "terminate"         : false
+                        },
+        "DESIG" : {     "title"             : "New Designation",
+                        "description"       : "Perform all necessary operations to issue a new designation (identifications, obs, orbit, ...)",
+                        "single"            : false,
+                        "async"             : false,
+                        "terminate"         : true
+                    },
+        "I"       : {   "title"             : "Initial Orbit Determination",
+                        "description"       : "Perform IOD on multiple tracklets [MPC tracklets are typically less than 1-night]",
+                        "single"            : false,
+                        "async"             : true,
+                        "terminate"         : false
+                        },
+        "SUBORDINATE":{ "title"             : "Tracklet of Suborbinate Observations",
+                        "description"       : "Perform all necessary operations to label all tracklet observations as being subordinate (not primary)",
+                        "single"            : true,
+                        "async"             : false,
+                        "terminate"         : true
+                        },
+        "PROBLEMS":{    "title"             : "Tracklet requiring manual attention",
+                        "description"       : "Perform manual inspection of problematic tracklet",
+                        "single"            : true,
+                        "async"             : false,
+                        "terminate"         : false
+                        }
+        }
+    }

@@ -1,0 +1,37 @@
+{
+    "last_modifying_author"     : "MJP",
+    "last_modification_date"    : "2022-11-29",
+    "description"               : "Defining the functions (and their critical parameters) that will decide how to route the results from processing operations. I initially wanted to create a graph-like spec of from:to relationships (as can be done to make flow-charts) but I found the implementation/communication of the cross-language logic to be a sticking point: jsonLogic.com looks like a great starting point, but there doesn't seem to be a standard SQL translation.",
+    "values"              : [
+            {   "source"        :"NEW",
+                "description"   :"Decide where to send a new tracklet, based on (a) tracklet-overlap-category, and (b) suppd (suggested desig).",
+                "flowchart"     :"https://app.diagrams.net/#G1B5l1AMNGYVKv8mMLZB286md4zeD6f6o2"
+                "python_func"   :"decision_func_NEWSUB",
+                "parameters"    :{ }
+            },
+            {   "source"        :"X",
+                "description"   :"Decide where to send a tracklet after ORBIT EXTENSION",
+                "flowchart"     :""
+                "python_func"   :"decision_func_X",
+                "parameters"    :{ }
+            },
+            {   "source"        :"ATT",
+                "description"   :"Decide where to send a tracklet after ATTRIBUTION",
+                "flowchart"     :""
+                "python_func"   :"decision_func_ATT",
+                "parameters"    :{ }
+            },
+            {   "source"        :"NEOCP",
+                "description"   :"Decide where to send a tracklet after NEOCP processing",
+                "flowchart"     :""
+                "python_func"   :"decision_func_NEOCP",
+                "parameters"    :{ }
+            },
+            {   "source"        :"I",
+                "description"   :"Decide where to send a tracklet after IOD",
+                "flowchart"     :""
+                "python_func"   :"decision_func_IOD",
+                "parameters"    :{ }
+            }
+    ]
+}
